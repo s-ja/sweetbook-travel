@@ -4,7 +4,7 @@ import { useState, useCallback, useRef } from "react"
 import Image from "next/image"
 import { format } from "date-fns"
 import { DateRange } from "react-day-picker"
-import { BookOpen, Camera, ChevronDown, Package, Sparkles, X } from "lucide-react"
+import { BookOpen, Camera, CheckCircle, ChevronDown, Package, Sparkles, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -103,11 +103,37 @@ export default function TravelBookPage() {
   const [isOrdering, setIsOrdering] = useState(false)
   const [orderStatus, setOrderStatus] = useState("")
   const [orderError, setOrderError] = useState("")
+  const [completedOrderUid, setCompletedOrderUid] = useState<string | null>(null)
 
+  const topRef = useRef<HTMLDivElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
   const scrollToForm = () => {
     formRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  const handleReset = () => {
+    // Revoke object URLs to free memory
+    if (frontPhoto) URL.revokeObjectURL(frontPhoto.preview)
+    if (backPhoto) URL.revokeObjectURL(backPhoto.preview)
+    contentPhotos.forEach((p) => URL.revokeObjectURL(p.preview))
+
+    setBookTitle("")
+    setTravelerName("")
+    setDateRange(undefined)
+    setFrontPhoto(null)
+    setBackPhoto(null)
+    setContentPhotos([])
+    setRecipientName("")
+    setPhone("")
+    setPostalCode("")
+    setAddress("")
+    setDetailAddress("")
+    setOrderStatus("")
+    setOrderError("")
+    setCompletedOrderUid(null)
+
+    topRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
   // Cover photo handlers
@@ -278,7 +304,8 @@ export default function TravelBookPage() {
       const orderData = await orderRes.json()
       if (!orderData.success) throw new Error(orderData.message)
 
-      setOrderStatus(`주문 완료! 주문번호: ${orderData.data.orderUid}`)
+      setCompletedOrderUid(orderData.data.orderUid)
+      topRef.current?.scrollIntoView({ behavior: "smooth" })
     } catch (err) {
       setOrderError(err instanceof Error ? err.message : "오류가 발생했습니다. 다시 시도해주세요.")
       setOrderStatus("")
@@ -288,7 +315,49 @@ export default function TravelBookPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div ref={topRef} className="min-h-screen bg-background">
+      {/* Order Complete Screen */}
+      {completedOrderUid && (
+        <section className="flex min-h-screen flex-col items-center justify-center px-6 py-24">
+          <div className="mx-auto flex max-w-md flex-col items-center text-center">
+            <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-primary/10">
+              <CheckCircle className="h-12 w-12 text-primary" />
+            </div>
+
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              포토북 주문이 완료되었습니다!
+            </h1>
+            <p className="mt-4 text-lg text-muted-foreground">
+              소중한 여행의 순간이 아름다운 책으로 만들어집니다.
+            </p>
+
+            <div className="mt-8 w-full rounded-2xl border border-border bg-card p-6">
+              <p className="text-sm text-muted-foreground">주문번호</p>
+              <p className="mt-1 font-mono text-lg font-semibold tracking-wide text-foreground">
+                {completedOrderUid}
+              </p>
+              <Separator className="my-4" />
+              <p className="text-sm text-muted-foreground">
+                영업일 기준 5-7일 내 배송됩니다.<br />
+                Sandbox 환경에서는 실제 인쇄·배송이 진행되지 않습니다.
+              </p>
+            </div>
+
+            <Button
+              size="lg"
+              className="mt-10 h-14 px-10 text-lg font-semibold"
+              onClick={handleReset}
+            >
+              <Sparkles className="mr-2 h-5 w-5" />
+              새 포토북 만들기
+            </Button>
+          </div>
+        </section>
+      )}
+
+      {/* Main Content (hidden after order complete) */}
+      <div className={completedOrderUid ? "hidden" : ""}>
+
       {/* Hero Section */}
       <section className="relative flex min-h-[90vh] flex-col items-center justify-center px-6 py-24">
         <div className="absolute inset-0 bg-gradient-to-b from-secondary/50 to-transparent" />
@@ -485,6 +554,7 @@ export default function TravelBookPage() {
                     placeholder="010-0000-0000"
                     value={phone}
                     onChange={handlePhoneChange}
+                    autoComplete="off"
                     className="h-12 bg-input"
                   />
                 </Field>
@@ -594,10 +664,12 @@ export default function TravelBookPage() {
             소중한 여행의 순간을 영원히 간직하세요
           </p>
           <p className="mt-6 text-xs text-muted-foreground">
-            © 2024 TravelBook. All rights reserved.
+            © 2026 TravelBook. All rights reserved.
           </p>
         </div>
       </footer>
+
+      </div>{/* end main content */}
     </div>
   )
 }

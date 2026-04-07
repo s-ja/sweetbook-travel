@@ -12,7 +12,6 @@ type: project
 ## 마감
 - 2026-04-08(화) 23:59
 - 제출물: GitHub Public 저장소 URL + 구글폼(서술형 4문항)
-- 구글폼: https://forms.gle/PrdSrWNyTucLeZdX9
 
 ## 서비스
 - **주제:** 여행 포토북 (TravelBook) — 변경 없이 유지

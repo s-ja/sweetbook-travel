@@ -17,6 +17,17 @@ import { DateRangePicker } from "@/components/date-range-picker"
 
 const MIN_CONTENT_PHOTOS = 24
 
+interface EstimateData {
+  productAmount: number
+  shippingFee: number
+  packagingFee: number
+  totalAmount: number
+  paidCreditAmount: number
+  creditBalance: number
+  creditSufficient: boolean
+  currency: string
+}
+
 interface CoverPhoto {
   file: File
   preview: string
@@ -104,6 +115,7 @@ export default function TravelBookPage() {
   const [orderStatus, setOrderStatus] = useState("")
   const [orderError, setOrderError] = useState("")
   const [completedOrderUid, setCompletedOrderUid] = useState<string | null>(null)
+  const [estimateData, setEstimateData] = useState<EstimateData | null>(null)
 
   const topRef = useRef<HTMLDivElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
@@ -132,6 +144,7 @@ export default function TravelBookPage() {
     setOrderStatus("")
     setOrderError("")
     setCompletedOrderUid(null)
+    setEstimateData(null)
 
     topRef.current?.scrollIntoView({ behavior: "smooth" })
   }
@@ -285,11 +298,32 @@ export default function TravelBookPage() {
       const finalData = await finalRes.json()
       if (!finalData.success) throw new Error(finalData.message)
 
-      // 5. 주문 생성
-      setOrderStatus("주문을 처리하는 중...")
-      const orderRes = await fetch("/api/orders", {
+      // 5. 견적 조회
+      setOrderStatus("견적을 조회하는 중...")
+      const estRes = await fetch("/api/orders/estimate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: [{ bookUid, quantity: 1 }] }),
+      })
+      const estJson = await estRes.json()
+      if (!estJson.success) throw new Error(estJson.message)
+      const est: EstimateData = estJson.data
+      setEstimateData(est)
+      if (!est.creditSufficient) {
+        throw new Error(
+          `크레딧이 부족합니다. 필요 금액: ${est.paidCreditAmount.toLocaleString()}원 / 잔액: ${est.creditBalance.toLocaleString()}원`
+        )
+      }
+
+      // 6. 주문 생성
+      setOrderStatus("주문을 처리하는 중...")
+      const idempotencyKey = crypto.randomUUID()
+      const orderRes = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify({
           items: [{ bookUid, quantity: 1 }],
           shipping: {
@@ -595,27 +629,64 @@ export default function TravelBookPage() {
             </Card>
 
             <Card className="h-fit p-8 lg:col-span-2">
-              <h3 className="mb-6 text-lg font-semibold text-foreground">예상 가격</h3>
+              <div className="mb-6 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-foreground">예상 가격</h3>
+                {estimateData ? (
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">API 견적</span>
+                ) : (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">임시 예상가</span>
+                )}
+              </div>
 
               <div className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">기본 제작비</span>
-                  <span className="font-medium">{basePrice.toLocaleString()}원</span>
-                </div>
-
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">내지 사진 ({contentPhotos.length}장)</span>
-                  <span className="font-medium">+{photoPrice.toLocaleString()}원</span>
-                </div>
-
-                <Separator className="my-4" />
-
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-foreground">총 결제 금액</span>
-                  <span className="text-2xl font-bold text-primary">
-                    {totalPrice.toLocaleString()}원
-                  </span>
-                </div>
+                {estimateData ? (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">제작비</span>
+                      <span className="font-medium">{estimateData.productAmount.toLocaleString()}원</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">배송비</span>
+                      <span className="font-medium">{estimateData.shippingFee.toLocaleString()}원</span>
+                    </div>
+                    {estimateData.packagingFee > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">포장비</span>
+                        <span className="font-medium">{estimateData.packagingFee.toLocaleString()}원</span>
+                      </div>
+                    )}
+                    <Separator className="my-4" />
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-foreground">총 결제 금액</span>
+                      <span className="text-2xl font-bold text-primary">
+                        {estimateData.totalAmount.toLocaleString()}원
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>크레딧 잔액</span>
+                      <span>{estimateData.creditBalance.toLocaleString()}원</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">기본 제작비</span>
+                      <span className="font-medium">{basePrice.toLocaleString()}원</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">내지 사진 ({contentPhotos.length}장)</span>
+                      <span className="font-medium">+{photoPrice.toLocaleString()}원</span>
+                    </div>
+                    <Separator className="my-4" />
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-foreground">총 결제 금액</span>
+                      <span className="text-2xl font-bold text-primary">
+                        {totalPrice.toLocaleString()}원
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">* 주문 시 API 실측 견적으로 확정됩니다</p>
+                  </>
+                )}
               </div>
 
               <Button

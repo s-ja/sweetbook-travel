@@ -596,7 +596,7 @@ export default function TravelBookPage() {
                 <Field>
                   <FieldLabel className="text-sm font-medium">우편번호</FieldLabel>
                   <Input
-                    placeholder="우편번호 (예: 07774)"
+                    placeholder="우편번호 (예: 12345)"
                     value={postalCode}
                     onChange={(e) => setPostalCode(e.target.value)}
                     autoComplete="off"
